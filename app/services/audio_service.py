@@ -1,7 +1,9 @@
-"""Audio processing service."""
+"""Audio processing service (robust recording save & format conversion)."""
 
 import os
+import re
 import base64
+import shutil
 import soundfile as sf
 import numpy as np
 import librosa
@@ -16,6 +18,24 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
+def _ensure_dir(p: Path) -> None:
+    p.parent.mkdir(parents=True, exist_ok=True)
+
+
+def _safe_b64decode(data: str) -> bytes:
+    # Make sure padding length is a multiple of 4
+    pad = (-len(data)) % 4
+    if pad:
+        data = data + ("=" * pad)
+    return base64.b64decode(data)
+
+
+def sanitize_filename(name: str) -> str:
+    # Keep alnum, dash, underscore; collapse spaces; trim
+    name = re.sub(r"\s+", "_", name.strip())
+    return re.sub(r"[^A-Za-z0-9_\-]+", "", name) or f"voice_{uuid.uuid4().hex[:8]}"
+
+
 class AudioService:
     """Service for audio processing operations."""
 
@@ -26,7 +46,7 @@ class AudioService:
             output_dir: Optional[Path] = None,
             sample_rate: int = None
     ) -> str:
-        """Save audio data to file."""
+        """Save a mono float32 NumPy array to WAV."""
         if sample_rate is None:
             sample_rate = settings.SAMPLE_RATE
 
@@ -37,16 +57,13 @@ class AudioService:
             filename = f"audio_{uuid.uuid4().hex[:8]}.wav"
 
         filepath = output_dir / filename
+        _ensure_dir(filepath)
 
         try:
-            # Ensure audio is 1D
-            if len(audio_data.shape) > 1:
+            # Ensure audio is 1D float32 in [-1,1]
+            if audio_data.ndim > 1:
                 audio_data = audio_data.squeeze()
-
-            # Ensure audio is in correct range
             audio_data = np.clip(audio_data, -1.0, 1.0)
-
-            # Convert to float32 if needed
             if audio_data.dtype != np.float32:
                 audio_data = audio_data.astype(np.float32)
 
@@ -59,14 +76,12 @@ class AudioService:
 
     @staticmethod
     def load_audio(filepath: str, target_sr: Optional[int] = None) -> Tuple[np.ndarray, int]:
-        """Load audio from file."""
+        """Load audio to mono float32 with librosa."""
         try:
             if target_sr is None:
                 target_sr = settings.SAMPLE_RATE
-
-            # Load with librosa for consistency
             audio, sr = librosa.load(filepath, sr=target_sr, mono=True)
-            return audio, sr
+            return audio.astype(np.float32), sr
         except Exception as e:
             logger.error(f"Failed to load audio: {e}")
             raise
@@ -75,66 +90,132 @@ class AudioService:
     def base64_to_audio(
             base64_data: str,
             output_path: Optional[Path] = None,
-            format: str = 'wav'
+            format: str = "wav"
     ) -> str:
-        """Convert base64 audio data to file."""
+        """
+        Convert base64-encoded audio to a WAV file.
+
+        - If `format != 'wav'`, we first write the raw bytes into a temp file in `uploads/`
+          with the correct extension, then convert that to WAV at `output_path`.
+        - If `output_path` is not provided, we write the final WAV into `uploads/`.
+        """
         try:
-            # Decode base64
-            audio_bytes = base64.b64decode(base64_data)
+            fmt = (format or "wav").lower().split(";")[0]
+            if "/" in fmt:
+                # sometimes a MIME like 'audio/webm'
+                fmt = fmt.split("/")[-1]
 
-            # Generate output path if not provided
+            # Choose final WAV destination
             if output_path is None:
-                output_path = settings.UPLOADS_DIR / f"recording_{uuid.uuid4().hex[:8]}.{format}"
+                final_wav = settings.UPLOADS_DIR / f"recording_{uuid.uuid4().hex[:8]}.wav"
+            else:
+                final_wav = Path(output_path)
+                if final_wav.suffix.lower() != ".wav":
+                    final_wav = final_wav.with_suffix(".wav")
+            _ensure_dir(final_wav)
 
-            # Save to file
-            with open(output_path, 'wb') as f:
-                f.write(audio_bytes)
+            # If the incoming is already WAV, write directly
+            if fmt == "wav":
+                raw = _safe_b64decode(base64_data)
+                with open(final_wav, "wb") as f:
+                    f.write(raw)
+                return str(final_wav)
 
-            # Convert to WAV if needed (for consistency)
-            if format != 'wav':
-                wav_path = output_path.with_suffix('.wav')
-                AudioService.convert_to_wav(str(output_path), str(wav_path))
-                # Remove original and use WAV
-                os.remove(output_path)
-                output_path = wav_path
+            # Otherwise, write to temp with ORIGINAL extension, then convert to WAV
+            tmp_src = settings.UPLOADS_DIR / f"tmp_{uuid.uuid4().hex[:8]}.{fmt}"
+            _ensure_dir(tmp_src)
+            raw = _safe_b64decode(base64_data)
+            with open(tmp_src, "wb") as f:
+                f.write(raw)
 
-            return str(output_path)
+            # Convert temp -> final WAV
+            AudioService.convert_to_wav(str(tmp_src), str(final_wav))
+            try:
+                tmp_src.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+            return str(final_wav)
+
         except Exception as e:
             logger.error(f"Failed to convert base64 to audio: {e}")
             raise
 
     @staticmethod
     def convert_to_wav(input_path: str, output_path: str) -> bool:
-        """Convert audio file to WAV format using ffmpeg or soundfile."""
+        """
+        Convert an arbitrary audio file to mono WAV @ SAMPLE_RATE.
+        Uses (1) soundfile if possible, (2) ffmpeg, (3) librosa as last resort.
+        Ensures input and output are NOT the same temp path.
+        """
         try:
-            # Try using soundfile first
-            data, sr = sf.read(input_path)
-            sf.write(output_path, data, sr)
-            return True
-        except Exception as e1:
-            logger.warning(f"Soundfile conversion failed: {e1}, trying ffmpeg")
+            in_path = os.path.abspath(input_path)
+            out_path = os.path.abspath(output_path)
+            out_dir = os.path.dirname(out_path)
+            os.makedirs(out_dir, exist_ok=True)
+
+            # If same path, use a temporary target
+            need_move = False
+            if in_path == out_path:
+                tmp_out = out_path + ".tmp.wav"
+                out_target = tmp_out
+                need_move = True
+            else:
+                out_target = out_path
+
+            # Try direct read/write with soundfile
             try:
-                # Try ffmpeg as fallback
+                data, sr = sf.read(in_path, always_2d=False)
+                if data.ndim > 1:
+                    # Mixdown to mono
+                    data = np.mean(data, axis=-1)
+                data = AudioService._resample_if_needed(data, sr, settings.SAMPLE_RATE)
+                data = data.astype(np.float32)
+                sf.write(out_target, data, settings.SAMPLE_RATE)
+                if need_move:
+                    shutil.move(out_target, out_path)
+                return True
+            except Exception as e1:
+                logger.warning(f"Soundfile conversion failed: {e1}, trying ffmpeg")
+
+            # Try ffmpeg
+            try:
                 cmd = [
-                    'ffmpeg', '-i', input_path,
-                    '-acodec', 'pcm_s16le',
-                    '-ar', str(settings.SAMPLE_RATE),
-                    '-ac', '1',  # Mono
-                    output_path,
-                    '-y'  # Overwrite
+                    "ffmpeg", "-y", "-i", in_path,
+                    "-acodec", "pcm_s16le",
+                    "-ar", str(settings.SAMPLE_RATE),
+                    "-ac", "1",
+                    out_target
                 ]
                 subprocess.run(cmd, check=True, capture_output=True)
+                if need_move:
+                    shutil.move(out_target, out_path)
                 return True
             except Exception as e2:
                 logger.error(f"FFmpeg conversion also failed: {e2}")
-                # Last resort: use librosa
-                try:
-                    audio, sr = librosa.load(input_path, sr=settings.SAMPLE_RATE, mono=True)
-                    sf.write(output_path, audio, sr)
-                    return True
-                except Exception as e3:
-                    logger.error(f"All conversion methods failed: {e3}")
-                    raise
+
+            # Last resort: librosa
+            try:
+                audio, sr = librosa.load(in_path, sr=settings.SAMPLE_RATE, mono=True)
+                audio = audio.astype(np.float32)
+                sf.write(out_target, audio, settings.SAMPLE_RATE)
+                if need_move:
+                    shutil.move(out_target, out_path)
+                return True
+            except Exception as e3:
+                logger.error(f"All conversion methods failed: {e3}")
+                raise
+
+        except Exception as e:
+            logger.error(f"convert_to_wav fatal error: {e}")
+            raise
+
+    @staticmethod
+    def _resample_if_needed(audio: np.ndarray, sr_in: int, sr_out: int) -> np.ndarray:
+        if sr_in == sr_out:
+            return audio
+        # Use librosa for high-quality resample
+        return librosa.resample(audio.astype(np.float32), orig_sr=sr_in, target_sr=sr_out)
 
     @staticmethod
     def audio_to_base64(filepath: str) -> str:
@@ -150,24 +231,13 @@ class AudioService:
     @staticmethod
     def normalize_audio(audio: np.ndarray, target_db: float = -20) -> np.ndarray:
         """Normalize audio to target dB."""
-        # Calculate RMS
-        rms = np.sqrt(np.mean(audio ** 2))
-
+        rms = float(np.sqrt(np.mean(np.square(audio)))) if audio.size else 0.0
         if rms > 0:
-            # Calculate desired RMS for target dB
             target_rms = 10 ** (target_db / 20)
-
-            # Calculate scaling factor
             scalar = target_rms / rms
-
-            # Apply scaling
             normalized = audio * scalar
-
-            # Prevent clipping
-            max_val = np.max(np.abs(normalized))
+            max_val = float(np.max(np.abs(normalized))) if normalized.size else 0.0
             if max_val > 0.95:
                 normalized = normalized * (0.95 / max_val)
-        else:
-            normalized = audio
-
-        return normalized
+            return normalized.astype(np.float32)
+        return audio.astype(np.float32)
