@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+python-multipart
+aiofiles
+pydantic
+python-dotenv
+torch
+transformers
+soundfile
+librosa
+numpy
+scipy
+gradio-client
