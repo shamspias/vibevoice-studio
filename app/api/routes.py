@@ -42,18 +42,37 @@ async def upload_voice(
 ):
     """Upload a voice sample."""
     try:
+        logger.info(f"Uploading voice: {name}, file: {file.filename}")
+
         # Validate file format
         file_ext = Path(file.filename).suffix.lower()
         if file_ext not in settings.SUPPORTED_FORMATS:
             raise HTTPException(400, f"Unsupported format. Use: {settings.SUPPORTED_FORMATS}")
 
+        # Check file size
+        content = await file.read()
+        file_size = len(content)
+        max_size = settings.MAX_AUDIO_SIZE_MB * 1024 * 1024
+
+        if file_size > max_size:
+            raise HTTPException(400, f"File too large. Maximum size: {settings.MAX_AUDIO_SIZE_MB}MB")
+
         # Save uploaded file
         filename = f"{name}_{uuid.uuid4().hex[:8]}{file_ext}"
         filepath = settings.VOICES_DIR / filename
 
-        content = await file.read()
         with open(filepath, 'wb') as f:
             f.write(content)
+
+        logger.info(f"Saved voice file to: {filepath}")
+
+        # Convert to WAV if needed for consistency
+        if file_ext != '.wav':
+            wav_filepath = filepath.with_suffix('.wav')
+            if audio_service.convert_to_wav(str(filepath), str(wav_filepath)):
+                os.remove(filepath)  # Remove original
+                filepath = wav_filepath
+                logger.info(f"Converted to WAV: {wav_filepath}")
 
         # Add voice profile
         profile = voice_service.add_voice_profile(
@@ -62,22 +81,29 @@ async def upload_voice(
             voice_type=VoiceType.UPLOADED
         )
 
-        return {"success": True, "voice": profile}
+        return {"success": True, "voice": profile, "message": "Voice uploaded successfully"}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Upload error: {e}")
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, f"Upload failed: {str(e)}")
 
 
 @router.post("/voices/record")
 async def record_voice(recording: AudioRecording):
     """Save a recorded voice sample."""
     try:
+        logger.info(f"Saving recorded voice: {recording.name}")
+
         # Convert base64 to audio file
         filepath = audio_service.base64_to_audio(
             recording.audio_data,
-            settings.VOICES_DIR / f"{recording.name}_{uuid.uuid4().hex[:8]}.wav"
+            settings.VOICES_DIR / f"{recording.name}_{uuid.uuid4().hex[:8]}.wav",
+            format=recording.format
         )
+
+        logger.info(f"Saved recording to: {filepath}")
 
         # Add voice profile
         profile = voice_service.add_voice_profile(
@@ -86,17 +112,19 @@ async def record_voice(recording: AudioRecording):
             voice_type=VoiceType.RECORDED
         )
 
-        return {"success": True, "voice": profile}
+        return {"success": True, "voice": profile, "message": "Recording saved successfully"}
 
     except Exception as e:
         logger.error(f"Recording error: {e}")
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, f"Recording failed: {str(e)}")
 
 
 @router.post("/generate", response_model=GenerationResponse)
 async def generate_speech(request: GenerationRequest):
     """Generate speech from text."""
     try:
+        logger.info(f"Generating speech for text length: {len(request.text)}")
+
         # Generate audio
         audio_array = voice_service.generate_speech(
             text=request.text,
@@ -108,7 +136,7 @@ async def generate_speech(request: GenerationRequest):
         if audio_array is None:
             return GenerationResponse(
                 success=False,
-                message="Failed to generate audio"
+                message="Failed to generate audio. Please check if model is loaded."
             )
 
         # Save generated audio
@@ -117,6 +145,8 @@ async def generate_speech(request: GenerationRequest):
             audio_array,
             filename=filename
         )
+
+        logger.info(f"Saved generated audio to: {filepath}")
 
         # Calculate duration
         duration = len(audio_array) / settings.SAMPLE_RATE
@@ -132,7 +162,7 @@ async def generate_speech(request: GenerationRequest):
         logger.error(f"Generation error: {e}")
         return GenerationResponse(
             success=False,
-            message=str(e)
+            message=f"Generation failed: {str(e)}"
         )
 
 
@@ -148,6 +178,8 @@ async def generate_from_file(
         content = await file.read()
         text = content.decode('utf-8')
 
+        logger.info(f"Generating from file: {file.filename}, text length: {len(text)}")
+
         # Generate audio
         request = GenerationRequest(
             text=text,
@@ -159,7 +191,7 @@ async def generate_from_file(
 
     except Exception as e:
         logger.error(f"File generation error: {e}")
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, f"Generation failed: {str(e)}")
 
 
 @router.get("/audio/{filename}")
@@ -185,5 +217,5 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "model_loaded": voice_service.model is not None
+        "model_loaded": voice_service.is_model_loaded()
     }
