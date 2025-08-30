@@ -1,4 +1,4 @@
-# 🎙️ VibeVoice App
+# 🎙️ VibeVoice Studio
 
 A beautiful, modern web application for AI-powered voice synthesis using Microsoft's VibeVoice model. Generate natural-sounding speech from text with custom voice profiles.
 
