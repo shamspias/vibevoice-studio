@@ -3,6 +3,7 @@ uvicorn[standard]
 python-multipart
 aiofiles
 pydantic
+pydantic-settings
 python-dotenv
 torch
 transformers
