@@ -13,7 +13,22 @@ document.addEventListener('DOMContentLoaded', () => {
     loadVoices();
     setupEventListeners();
     initializeTheme();
+    checkModelStatus();
 });
+
+// Check model status
+async function checkModelStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/health`);
+        const data = await response.json();
+
+        if (!data.model_loaded) {
+            showToast('Model is loading, this may take a few minutes...', 'warning');
+        }
+    } catch (error) {
+        console.error('Failed to check model status:', error);
+    }
+}
 
 // Theme Management
 function initializeTheme() {
@@ -47,9 +62,23 @@ function setupEventListeners() {
         document.getElementById('cfg-value').textContent = e.target.value;
     });
 
+    // Voice file upload - FIX: Add change event listener
+    const voiceUploadInput = document.getElementById('voice-upload');
+    voiceUploadInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const uploadArea = document.getElementById('upload-drop');
+            uploadArea.querySelector('p').textContent = `Selected: ${file.name}`;
+        }
+    });
+
     // File upload drag & drop
     const uploadArea = document.getElementById('upload-drop');
-    uploadArea.addEventListener('click', () => {
+    uploadArea.addEventListener('click', (e) => {
+        // Prevent clicking on buttons or inputs from triggering file dialog
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') {
+            return;
+        }
         document.getElementById('voice-upload').click();
     });
 
@@ -67,7 +96,9 @@ function setupEventListeners() {
         uploadArea.classList.remove('dragging');
         const files = e.dataTransfer.files;
         if (files.length > 0) {
-            document.getElementById('voice-upload').files = files;
+            const voiceUploadInput = document.getElementById('voice-upload');
+            voiceUploadInput.files = files;
+            uploadArea.querySelector('p').textContent = `Selected: ${files[0].name}`;
         }
     });
 
@@ -95,8 +126,13 @@ function switchTab(tab) {
     // Show selected tab
     document.getElementById(`${tab}-tab`).style.display = 'block';
 
-    // Add active class to clicked button
-    event.target.classList.add('active');
+    // Add active class to clicked button - FIX: Find the correct button
+    const clickedBtn = Array.from(document.querySelectorAll('.tab-btn')).find(btn =>
+        btn.textContent.toLowerCase().includes(tab)
+    );
+    if (clickedBtn) {
+        clickedBtn.classList.add('active');
+    }
 }
 
 function switchTextTab(tab) {
@@ -109,7 +145,14 @@ function switchTextTab(tab) {
     });
 
     document.getElementById(`${tab}-tab`).style.display = 'block';
-    event.target.classList.add('active');
+
+    // FIX: Find the correct button
+    const clickedBtn = Array.from(document.querySelectorAll('.text-tab-btn')).find(btn =>
+        btn.textContent.toLowerCase().includes(tab === 'manual' ? 'manual' : 'file')
+    );
+    if (clickedBtn) {
+        clickedBtn.classList.add('active');
+    }
 }
 
 // Voice Management
@@ -127,9 +170,14 @@ async function loadVoices() {
             voiceCard.dataset.voiceId = voice.id;
             voiceCard.onclick = () => selectVoice(voice.id);
 
+            // Add different icons based on voice type
+            const icon = voice.type === 'recorded' ? 'fa-microphone' :
+                voice.type === 'uploaded' ? 'fa-upload' : 'fa-user-circle';
+
             voiceCard.innerHTML = `
-                <i class="fas fa-user-circle"></i>
+                <i class="fas ${icon}"></i>
                 <div class="voice-name">${voice.name}</div>
+                <div class="voice-type" style="font-size: 0.7rem; color: var(--text-secondary);">${voice.type}</div>
             `;
 
             voiceList.appendChild(voiceCard);
@@ -164,19 +212,29 @@ async function uploadVoice() {
     const fileInput = document.getElementById('voice-upload');
     const nameInput = document.getElementById('upload-name');
 
-    if (!fileInput.files.length) {
+    if (!fileInput.files || !fileInput.files.length) {
         showToast('Please select an audio file', 'warning');
         return;
     }
 
-    if (!nameInput.value.trim()) {
+    const voiceName = nameInput.value.trim();
+    if (!voiceName) {
         showToast('Please enter a voice name', 'warning');
         return;
     }
 
+    const file = fileInput.files[0];
+
+    // Check file size (max 50MB)
+    const maxSize = 50 * 1024 * 1024; // 50MB in bytes
+    if (file.size > maxSize) {
+        showToast('File size must be less than 50MB', 'error');
+        return;
+    }
+
     const formData = new FormData();
-    formData.append('file', fileInput.files[0]);
-    formData.append('name', nameInput.value.trim());
+    formData.append('file', file);
+    formData.append('name', voiceName);
 
     showLoading('Uploading voice...');
 
@@ -186,20 +244,33 @@ async function uploadVoice() {
             body: formData
         });
 
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Upload failed');
+        }
+
         const result = await response.json();
 
         if (result.success) {
             showToast('Voice uploaded successfully', 'success');
-            loadVoices();
+            await loadVoices(); // Reload voices
+
+            // Clear inputs
             fileInput.value = '';
             nameInput.value = '';
+            document.getElementById('upload-drop').querySelector('p').textContent = 'Drag & drop audio file or click to browse';
+
+            // Select the newly uploaded voice
+            if (result.voice && result.voice.id) {
+                selectVoice(result.voice.id);
+            }
         } else {
-            showToast('Upload failed', 'error');
+            showToast(result.message || 'Upload failed', 'error');
         }
 
     } catch (error) {
-        showToast('Upload error', 'error');
-        console.error(error);
+        showToast(`Upload error: ${error.message}`, 'error');
+        console.error('Upload error:', error);
     } finally {
         hideLoading();
     }
@@ -217,25 +288,33 @@ async function toggleRecording() {
 async function startRecording() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({audio: true});
-        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder = new MediaRecorder(stream, {mimeType: 'audio/webm'});
         audioChunks = [];
 
         mediaRecorder.ondataavailable = (event) => {
-            audioChunks.push(event.data);
+            if (event.data.size > 0) {
+                audioChunks.push(event.data);
+            }
         };
 
         mediaRecorder.onstop = () => {
-            recordedBlob = new Blob(audioChunks, {type: 'audio/wav'});
+            const audioBlob = new Blob(audioChunks, {type: 'audio/webm'});
+            recordedBlob = audioBlob;
             document.getElementById('save-recording').style.display = 'inline-block';
+
+            // Create audio preview
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioUrl);
+            // You can add a preview player here if needed
         };
 
-        mediaRecorder.start();
+        mediaRecorder.start(100); // Collect data every 100ms
         isRecording = true;
 
         // Update UI
         const recordBtn = document.getElementById('record-btn');
         recordBtn.classList.add('recording');
-        document.getElementById('record-status').textContent = 'Recording...';
+        document.getElementById('record-status').textContent = 'Recording... Click to stop';
 
         // Start visualizer
         startVisualizer(stream);
@@ -261,8 +340,9 @@ function stopRecording() {
 
 async function saveRecording() {
     const nameInput = document.getElementById('record-name');
+    const voiceName = nameInput.value.trim();
 
-    if (!nameInput.value.trim()) {
+    if (!voiceName) {
         showToast('Please enter a voice name', 'warning');
         return;
     }
@@ -286,9 +366,9 @@ async function saveRecording() {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    name: nameInput.value.trim(),
+                    name: voiceName,
                     audio_data: base64Audio,
-                    format: 'wav'
+                    format: 'webm'  // Changed from wav to webm
                 })
             });
 
@@ -296,11 +376,18 @@ async function saveRecording() {
 
             if (result.success) {
                 showToast('Recording saved successfully', 'success');
-                loadVoices();
+                await loadVoices(); // Reload voices
+
+                // Clear inputs
                 nameInput.value = '';
                 document.getElementById('save-recording').style.display = 'none';
                 document.getElementById('record-status').textContent = 'Click to start recording';
                 recordedBlob = null;
+
+                // Select the newly recorded voice
+                if (result.voice && result.voice.id) {
+                    selectVoice(result.voice.id);
+                }
             } else {
                 showToast('Save failed', 'error');
             }
@@ -319,7 +406,7 @@ async function saveRecording() {
 function startVisualizer(stream) {
     const canvas = document.getElementById('waveform');
     const ctx = canvas.getContext('2d');
-    const audioContext = new AudioContext();
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioContext.createAnalyser();
     const source = audioContext.createMediaStreamSource(stream);
 
@@ -401,7 +488,7 @@ async function generateSpeech() {
     const cfgScale = parseFloat(document.getElementById('cfg-scale').value);
     const numSpeakers = parseInt(document.getElementById('num-speakers').value);
 
-    showLoading('Generating speech...');
+    showLoading('Generating speech... This may take a moment...');
 
     try {
         const response = await fetch(`${API_BASE}/generate`, {
@@ -481,12 +568,18 @@ function displayAudio(result) {
 
     const audioPlayer = document.getElementById('audio-player');
     audioPlayer.src = result.audio_url;
+    audioPlayer.load(); // Force reload the audio
 
-    document.getElementById('audio-duration').textContent = `Duration: ${result.duration.toFixed(2)}s`;
+    if (result.duration) {
+        document.getElementById('audio-duration').textContent = `Duration: ${result.duration.toFixed(2)}s`;
+    }
     document.getElementById('generation-time').textContent = `Generated at: ${new Date().toLocaleTimeString()}`;
 
     // Store current audio URL for download
     window.currentAudioUrl = result.audio_url;
+
+    // Scroll to output section
+    outputSection.scrollIntoView({behavior: 'smooth'});
 }
 
 function downloadAudio() {
