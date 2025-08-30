@@ -64,7 +64,7 @@ cp .env.example .env
 6. **Run the application**
 
 ```bash
-uvicorn app.main:app --reload
+python -m app.main
 ```
 
 7. **Open in browser**
