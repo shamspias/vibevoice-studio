@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     MAX_AUDIO_SIZE_MB: int = 50
     SUPPORTED_FORMATS: list = [".wav", ".mp3", ".m4a", ".flac", ".ogg"]
 
+    # keep non-blocking startup
+    LOAD_MODEL_ON_STARTUP: bool = False
+
     class Config:
         env_file = ".env"
 
