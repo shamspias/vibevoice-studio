@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     # keep non-blocking startup
     LOAD_MODEL_ON_STARTUP: bool = False
 
+    # Silence HF tokenizers fork/parallelism warning
+    TOKENIZERS_PARALLELISM: bool = False
+
     class Config:
         env_file = ".env"
 
