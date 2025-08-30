@@ -28,8 +28,8 @@ A beautiful, modern web application for AI-powered voice synthesis using Microso
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/shamspias/vibevoice-app.git
-cd vibevoice-app
+git clone https://github.com/shamspias/vibevoice-studio.git
+cd vibevoice-studio
 ````
 
 2. **Create virtual environment**
@@ -64,7 +64,7 @@ cp .env.example .env
 6. **Run the application**
 
 ```bash
-python -m app.main
+uvicorn app.main:app --reload
 ```
 
 7. **Open in browser**
@@ -123,8 +123,8 @@ SAMPLE_RATE=24000
 ### Multi-Speaker
 
 ```text
-Speaker 0: Hello, welcome!
-Speaker 1: Thanks, glad to be here.
+Speaker 1: Hello, welcome!
+Speaker 2: Thanks, glad to be here.
 ```
 
 ### Voice Cloning
