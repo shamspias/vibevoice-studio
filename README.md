@@ -18,11 +18,11 @@ A beautiful, modern web application for AI-powered voice synthesis using Microso
 - 💾 **Download & Save**: Export generated audio files  
 
 ## 🎬 Demo
-<video controls playsinline muted width="800" poster="assets/demo/thumbnail.png">
-  <source src="https://raw.githubusercontent.com/shamspias/vibevoice-studio/main/assets/demo/vibevoice-demo.mp4" type="video/mp4" />
-  Your browser does not support the video tag. 
-  <a href="https://raw.githubusercontent.com/shamspias/vibevoice-studio/main/assets/demo/vibevoice-demo.mp4">Direct link</a>.
-</video>
+
+<div align="center">
+https://github.com/user-attachments/assets/517d2335-7d73-4e5e-b391-67fc42e0c64b
+</div>
+
 
 ## 🚀 Quick Start
 
