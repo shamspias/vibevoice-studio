@@ -17,6 +17,18 @@ A beautiful, modern web application for AI-powered voice synthesis using Microso
 - 📊 **Audio Visualization**: Live waveform display during recording  
 - 💾 **Download & Save**: Export generated audio files  
 
+## 🎬 Demo
+
+<figure>
+  <video controls playsinline muted width="800">
+    <source src="assets/demo/vibevoice-demo.mp4" type="video/mp4" />
+    Your browser does not support the video tag.
+    Here’s a <a href="assets/demo/vibevoice-demo.mp4">direct link to the video</a>.
+  </video>
+  <figcaption>VibeVoice Studio end-to-end TTS, voice library, and multi-speaker demo.</figcaption>
+</figure>
+
+
 ## 🚀 Quick Start
 
 ### Prerequisites
