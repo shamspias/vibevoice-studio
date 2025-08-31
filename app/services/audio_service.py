@@ -4,16 +4,19 @@ import os
 import re
 import base64
 import shutil
+import json
 import soundfile as sf
 import numpy as np
 import librosa
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 import logging
 import uuid
 import subprocess
+from datetime import datetime
 
 from app.config import settings
+from app.models import AudioFile
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +44,10 @@ class AudioService:
 
     @staticmethod
     def save_audio(
-            audio_data: np.ndarray,
-            filename: Optional[str] = None,
-            output_dir: Optional[Path] = None,
-            sample_rate: int = None
+        audio_data: np.ndarray,
+        filename: Optional[str] = None,
+        output_dir: Optional[Path] = None,
+        sample_rate: int = None,
     ) -> str:
         """Save a mono float32 NumPy array to WAV."""
         if sample_rate is None:
@@ -75,7 +78,86 @@ class AudioService:
             raise
 
     @staticmethod
-    def load_audio(filepath: str, target_sr: Optional[int] = None) -> Tuple[np.ndarray, int]:
+    def save_audio_metadata(
+        filename: str, voice_name: str, duration: float, text_preview: str
+    ):
+        """Save metadata for generated audio file."""
+        try:
+            filepath = settings.OUTPUTS_DIR / filename
+            metadata_file = filepath.with_suffix(".json")
+
+            metadata = {
+                "filename": filename,
+                "voice_name": voice_name,
+                "duration": duration,
+                "text_preview": text_preview[:100],
+                "created_at": datetime.now().isoformat(),
+            }
+
+            with open(metadata_file, "w") as f:
+                json.dump(metadata, f)
+
+        except Exception as e:
+            logger.error(f"Failed to save metadata: {e}")
+
+    @staticmethod
+    def get_audio_library(search: Optional[str] = None) -> List[AudioFile]:
+        """Get all generated audio files with metadata."""
+        audio_files = []
+
+        try:
+            # Get all wav files in outputs directory
+            for wav_file in settings.OUTPUTS_DIR.glob("*.wav"):
+                # Try to load metadata
+                metadata_file = wav_file.with_suffix(".json")
+
+                if metadata_file.exists():
+                    with open(metadata_file, "r") as f:
+                        metadata = json.load(f)
+
+                    audio_file = AudioFile(
+                        filename=metadata["filename"],
+                        voice_name=metadata["voice_name"],
+                        duration=metadata["duration"],
+                        size=wav_file.stat().st_size,
+                        text_preview=metadata["text_preview"],
+                        created_at=datetime.fromisoformat(metadata["created_at"]),
+                    )
+                else:
+                    # Create basic metadata from file info
+                    audio_file = AudioFile(
+                        filename=wav_file.name,
+                        voice_name="Unknown",
+                        duration=0.0,
+                        size=wav_file.stat().st_size,
+                        text_preview="",
+                        created_at=datetime.fromtimestamp(wav_file.stat().st_mtime),
+                    )
+
+                # Apply search filter if provided
+                if search:
+                    search_lower = search.lower()
+                    if (
+                        search_lower not in audio_file.filename.lower()
+                        and search_lower not in audio_file.voice_name.lower()
+                        and search_lower not in audio_file.text_preview.lower()
+                    ):
+                        continue
+
+                audio_files.append(audio_file)
+
+            # Sort by creation date (newest first)
+            audio_files.sort(key=lambda x: x.created_at, reverse=True)
+
+        except Exception as e:
+            logger.error(f"Failed to get audio library: {e}")
+
+        return audio_files
+
+    @staticmethod
+    def load_audio(
+        filepath: str, target_sr: Optional[int] = None
+    ) -> Tuple[np.ndarray, int]:
         """Load audio to mono float32 with librosa."""
         try:
             if target_sr is None:
@@ -88,14 +170,13 @@ class AudioService:
 
     @staticmethod
     def base64_to_audio(
-            base64_data: str,
-            output_path: Optional[Path] = None,
-            format: str = "wav"
+        base64_data: str, output_path: Optional[Path] = None, format: str = "wav"
     ) -> str:
         """
         Convert base64-encoded audio to a WAV file.
 
-        - If `format != 'wav'`, we first write the raw bytes into a temp file in `uploads/`
+        - If `format != 'wav'`, we first write the raw
+          bytes into a temp file in `uploads/`
           with the correct extension, then convert that to WAV at `output_path`.
         - If `output_path` is not provided, we write the final WAV into `uploads/`.
         """
@@ -107,7 +188,9 @@ class AudioService:
 
             # Choose final WAV destination
             if output_path is None:
-                final_wav = settings.UPLOADS_DIR / f"recording_{uuid.uuid4().hex[:8]}.wav"
+                final_wav = (
+                    settings.UPLOADS_DIR / f"recording_{uuid.uuid4().hex[:8]}.wav"
+                )
             else:
                 final_wav = Path(output_path)
                 if final_wav.suffix.lower() != ".wav":
@@ -181,11 +264,17 @@ class AudioService:
             # Try ffmpeg
             try:
                 cmd = [
-                    "ffmpeg", "-y", "-i", in_path,
-                    "-acodec", "pcm_s16le",
-                    "-ar", str(settings.SAMPLE_RATE),
-                    "-ac", "1",
-                    out_target
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    in_path,
+                    "-acodec",
+                    "pcm_s16le",
+                    "-ar",
+                    str(settings.SAMPLE_RATE),
+                    "-ac",
+                    "1",
+                    out_target,
                 ]
                 subprocess.run(cmd, check=True, capture_output=True)
                 if need_move:
@@ -215,15 +304,17 @@ class AudioService:
         if sr_in == sr_out:
             return audio
         # Use librosa for high-quality resample
-        return librosa.resample(audio.astype(np.float32), orig_sr=sr_in, target_sr=sr_out)
+        return librosa.resample(
+            audio.astype(np.float32), orig_sr=sr_in, target_sr=sr_out
+        )
 
     @staticmethod
     def audio_to_base64(filepath: str) -> str:
         """Convert audio file to base64."""
         try:
-            with open(filepath, 'rb') as f:
+            with open(filepath, "rb") as f:
                 audio_bytes = f.read()
-            return base64.b64encode(audio_bytes).decode('utf-8')
+            return base64.b64encode(audio_bytes).decode("utf-8")
         except Exception as e:
             logger.error(f"Failed to convert audio to base64: {e}")
             raise
