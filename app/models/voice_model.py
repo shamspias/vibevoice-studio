@@ -8,6 +8,7 @@ from enum import Enum
 
 class VoiceType(str, Enum):
     """Voice type enumeration."""
+
     RECORDED = "recorded"
     UPLOADED = "uploaded"
     PRESET = "preset"
@@ -15,6 +16,7 @@ class VoiceType(str, Enum):
 
 class VoiceProfile(BaseModel):
     """Voice profile model."""
+
     id: str
     name: str
     type: VoiceType
@@ -23,13 +25,12 @@ class VoiceProfile(BaseModel):
     description: Optional[str] = None
 
     class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+        json_encoders = {datetime: lambda v: v.isoformat()}
 
 
 class GenerationRequest(BaseModel):
     """TTS generation request model."""
+
     text: str
     voice_id: str
     num_speakers: int = Field(default=1, ge=1, le=4)
@@ -39,6 +40,7 @@ class GenerationRequest(BaseModel):
 
 class GenerationResponse(BaseModel):
     """TTS generation response model."""
+
     success: bool
     audio_url: Optional[str] = None
     duration: Optional[float] = None
@@ -48,6 +50,30 @@ class GenerationResponse(BaseModel):
 
 class AudioRecording(BaseModel):
     """Audio recording model."""
+
     name: str
     audio_data: str  # Base64 encoded audio
     format: str = "wav"
+
+
+class AudioFile(BaseModel):
+    """Generated audio file model."""
+
+    filename: str
+    voice_name: str
+    duration: float
+    size: int  # File size in bytes
+    text_preview: str  # First 100 chars of the text
+    created_at: datetime
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class AudioLibraryResponse(BaseModel):
+    """Audio library response model."""
+
+    success: bool
+    audio_files: List[AudioFile]
+    total: int
+    message: Optional[str] = None

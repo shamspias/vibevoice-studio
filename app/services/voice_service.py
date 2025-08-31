@@ -1,12 +1,6 @@
-"""Voice synthesis service using VibeVoice (fixed for dtype/device issues)."""
-
 import os
 
-# Silence the fork/parallelism warning from HF tokenizers
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-
 import logging
-from pathlib import Path
 from typing import Optional, List, Dict
 import uuid
 import numpy as np
@@ -17,6 +11,9 @@ from app.config import settings
 from app.models import VoiceProfile, VoiceType
 
 logger = logging.getLogger(__name__)
+
+# Silence the fork/parallelism warning from HF tokenizers
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 
 class VoiceService:
@@ -52,19 +49,21 @@ class VoiceService:
             # Decide device
             use_cuda = settings.DEVICE == "cuda" and torch.cuda.is_available()
             use_mps = (
-                    settings.DEVICE == "mps"
-                    and getattr(torch.backends, "mps", None) is not None
-                    and torch.backends.mps.is_available()
+                settings.DEVICE == "mps"
+                and getattr(torch.backends, "mps", None) is not None
+                and torch.backends.mps.is_available()
             )
             torch_device = "cuda" if use_cuda else ("mps" if use_mps else "cpu")
 
             # IMPORTANT:
             # - CUDA can benefit from float16/bfloat16 (depending on kernels).
-            # - CPU/MPS must use float32 to avoid NumPy conversion errors (bf16 unsupported).
+            # - CPU/MPS must use float32 to avoid NumPy
+            # - conversion errors (bf16 unsupported).
             dtype = torch.float16 if use_cuda else torch.float32
 
             logger.info(
-                f"Loading model from {settings.MODEL_PATH} on device={torch_device} dtype={dtype}"
+                f"Loading model from {settings.MODEL_PATH} "
+                f"on device={torch_device} dtype={dtype}"
             )
 
             # Load processor
@@ -131,13 +130,16 @@ class VoiceService:
             logger.info(f"Loaded voice: {voice_file.stem}")
 
     def generate_speech(
-            self,
-            text: str,
-            voice_id: str,
-            num_speakers: int = 1,
-            cfg_scale: float = 1.3,
+        self,
+        text: str,
+        voice_id: str,
+        num_speakers: int = 1,
+        cfg_scale: float = 1.3,
     ) -> Optional[np.ndarray]:
-        """Generate speech from text. Always returns float32 NumPy audio when successful."""
+        """
+        Generate speech from text. Always returns
+         float32 NumPy audio when successful.
+        """
         try:
             # Validate voice
             voice_profile = self.voices_cache.get(voice_id)
@@ -182,7 +184,10 @@ class VoiceService:
             )
 
             # Extract audio
-            if getattr(outputs, "speech_outputs", None) and outputs.speech_outputs[0] is not None:
+            if (
+                getattr(outputs, "speech_outputs", None)
+                and outputs.speech_outputs[0] is not None
+            ):
                 audio_tensor = outputs.speech_outputs[0]
 
                 # Cast to float32 so NumPy can convert (bf16/fp16 -> float32)
@@ -206,7 +211,10 @@ class VoiceService:
             return self._generate_sample_audio(text)
 
     def _format_text_for_speakers(self, text: str, num_speakers: int) -> str:
-        """Ensure text has 'Speaker i:' prefixes when multiple speakers are requested."""
+        """
+        Ensure text has 'Speaker i:'
+        prefixes when multiple speakers are requested.
+        """
         if num_speakers <= 1:
             if not text.strip().startswith("Speaker"):
                 return f"Speaker 0: {text}"
@@ -232,7 +240,9 @@ class VoiceService:
         t = np.linspace(0, duration, int(sr * duration), endpoint=False)
 
         freqs = [220.0, 440.0, 660.0]
-        audio = sum(0.25 / (i + 1) * np.sin(2 * np.pi * f * t) for i, f in enumerate(freqs))
+        audio = sum(
+            0.25 / (i + 1) * np.sin(2 * np.pi * f * t) for i, f in enumerate(freqs)
+        )
 
         # Simple envelope
         env = np.minimum(1.0, np.linspace(0, 1.0, len(t)) * 3.0) * np.exp(-t * 0.6)
@@ -245,10 +255,10 @@ class VoiceService:
         return audio
 
     def add_voice_profile(
-            self,
-            name: str,
-            audio_path: str,
-            voice_type: VoiceType = VoiceType.UPLOADED,
+        self,
+        name: str,
+        audio_path: str,
+        voice_type: VoiceType = VoiceType.UPLOADED,
     ) -> VoiceProfile:
         """Add a new voice profile to the in-memory cache."""
         voice_id = str(uuid.uuid4())
@@ -261,6 +271,27 @@ class VoiceService:
         self.voices_cache[voice_id] = profile
         logger.info(f"Added voice profile: {name} (type: {voice_type})")
         return profile
+
+    def delete_voice_profile(self, voice_id: str) -> bool:
+        """Delete a voice profile and its associated file."""
+        try:
+            profile = self.voices_cache.get(voice_id)
+            if not profile:
+                return False
+
+            # Delete the audio file
+            if os.path.exists(profile.file_path):
+                os.remove(profile.file_path)
+                logger.info(f"Deleted voice file: {profile.file_path}")
+
+            # Remove from cache
+            del self.voices_cache[voice_id]
+            logger.info(f"Deleted voice profile: {profile.name}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to delete voice profile: {e}")
+            raise
 
     def get_voice_profiles(self) -> List[VoiceProfile]:
         """Return all available voice profiles."""

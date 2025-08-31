@@ -1,4 +1,5 @@
 """Configuration module for VibeVoice application."""
+
 from pathlib import Path
 from pydantic_settings import BaseSettings
 
