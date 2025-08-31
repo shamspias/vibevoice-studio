@@ -4,12 +4,11 @@ import os
 import uuid
 import logging
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse
-import numpy as np
 
 from app.models import (
     VoiceProfile,
@@ -17,6 +16,7 @@ from app.models import (
     GenerationResponse,
     AudioRecording,
     VoiceType,
+    AudioLibraryResponse,
 )
 from app.services import VoiceService, AudioService
 from app.config import settings
@@ -29,27 +29,49 @@ audio_service = AudioService()
 
 
 @router.get("/voices", response_model=List[VoiceProfile])
-async def get_voices():
-    return voice_service.get_voice_profiles()
+async def get_voices(search: Optional[str] = Query(None)):
+    """Get all voice profiles with optional search."""
+    voices = voice_service.get_voice_profiles()
+
+    if search:
+        search_lower = search.lower()
+        voices = [v for v in voices if search_lower in v.name.lower()]
+
+    return voices
+
+
+@router.delete("/voices/{voice_id}")
+async def delete_voice(voice_id: str):
+    """Delete a voice profile."""
+    try:
+        success = voice_service.delete_voice_profile(voice_id)
+        if success:
+            return {"success": True, "message": "Voice deleted successfully"}
+        else:
+            raise HTTPException(404, "Voice not found")
+    except Exception as e:
+        logger.error(f"Failed to delete voice: {e}")
+        raise HTTPException(500, f"Failed to delete voice: {str(e)}")
 
 
 @router.post("/voices/upload")
-async def upload_voice(
-        file: UploadFile = File(...),
-        name: str = Form(...)
-):
+async def upload_voice(file: UploadFile = File(...), name: str = Form(...)):
     try:
         logger.info(f"Uploading voice: {name}, file: {file.filename}")
 
         file_ext = Path(file.filename).suffix.lower()
         if file_ext not in settings.SUPPORTED_FORMATS:
-            raise HTTPException(400, f"Unsupported format. Use: {settings.SUPPORTED_FORMATS}")
+            raise HTTPException(
+                400, f"Unsupported format. Use: {settings.SUPPORTED_FORMATS}"
+            )
 
         content = await file.read()
         size = len(content)
         max_size = settings.MAX_AUDIO_SIZE_MB * 1024 * 1024
         if size > max_size:
-            raise HTTPException(400, f"File too large. Max {settings.MAX_AUDIO_SIZE_MB}MB")
+            raise HTTPException(
+                400, f"File too large. Max {settings.MAX_AUDIO_SIZE_MB}MB"
+            )
 
         # save raw
         raw_path = settings.VOICES_DIR / f"{name}_{uuid.uuid4().hex[:8]}{file_ext}"
@@ -75,7 +97,11 @@ async def upload_voice(
             audio_path=str(final_path),
             voice_type=VoiceType.UPLOADED,
         )
-        return {"success": True, "voice": profile, "message": "Voice uploaded successfully"}
+        return {
+            "success": True,
+            "voice": profile,
+            "message": "Voice uploaded successfully",
+        }
 
     except HTTPException:
         raise
@@ -92,7 +118,9 @@ async def record_voice(recording: AudioRecording):
 
         # Use container extension from client format; default webm
         ext = (recording.format or "webm").lower().lstrip(".")
-        raw_path = settings.VOICES_DIR / f"{recording.name}_{uuid.uuid4().hex[:8]}.{ext}"
+        raw_path = (
+            settings.VOICES_DIR / f"{recording.name}_{uuid.uuid4().hex[:8]}.{ext}"
+        )
 
         # Write raw and convert to wav
         wav_path = audio_service.base64_to_audio(
@@ -107,7 +135,11 @@ async def record_voice(recording: AudioRecording):
             audio_path=wav_path,
             voice_type=VoiceType.RECORDED,
         )
-        return {"success": True, "voice": profile, "message": "Recording saved successfully"}
+        return {
+            "success": True,
+            "voice": profile,
+            "message": "Recording saved successfully",
+        }
 
     except Exception as e:
         logger.error(f"Recording error: {e}")
@@ -118,6 +150,11 @@ async def record_voice(recording: AudioRecording):
 async def generate_speech(request: GenerationRequest):
     try:
         logger.info(f"Generating speech for text length: {len(request.text)}")
+
+        # Get voice profile to use its name
+        voice_profile = voice_service.get_voice_profile(request.voice_id)
+        voice_name = voice_profile.name if voice_profile else "unknown"
+
         audio_array = voice_service.generate_speech(
             text=request.text,
             voice_id=request.voice_id,
@@ -128,14 +165,22 @@ async def generate_speech(request: GenerationRequest):
         if audio_array is None:
             return GenerationResponse(
                 success=False,
-                message="Failed to generate audio. Please check if model is loaded."
+                message="Failed to generate audio. Please check if model is loaded.",
             )
 
-        filename = f"generated_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
+        # Create filename with voice name and timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{voice_name}_{timestamp}.wav"
         filepath = audio_service.save_audio(audio_array, filename=filename)
         logger.info(f"Saved generated audio to: {filepath}")
 
         duration = len(audio_array) / settings.SAMPLE_RATE
+
+        # Save metadata for audio library
+        audio_service.save_audio_metadata(
+            filename, voice_name, duration, request.text[:100]
+        )
+
         return GenerationResponse(
             success=True,
             audio_url=f"/api/audio/{filename}",
@@ -149,9 +194,9 @@ async def generate_speech(request: GenerationRequest):
 
 @router.post("/generate/file")
 async def generate_from_file(
-        file: UploadFile = File(...),
-        voice_id: str = Form(...),
-        cfg_scale: float = Form(1.3),
+    file: UploadFile = File(...),
+    voice_id: str = Form(...),
+    cfg_scale: float = Form(1.3),
 ):
     try:
         content = await file.read()
@@ -164,6 +209,42 @@ async def generate_from_file(
         raise HTTPException(500, f"Generation failed: {str(e)}")
 
 
+@router.get("/audio/library", response_model=AudioLibraryResponse)
+async def get_audio_library(search: Optional[str] = Query(None)):
+    """Get all generated audio files with metadata."""
+    try:
+        audio_files = audio_service.get_audio_library(search)
+        return AudioLibraryResponse(
+            success=True, audio_files=audio_files, total=len(audio_files)
+        )
+    except Exception as e:
+        logger.error(f"Failed to get audio library: {e}")
+        return AudioLibraryResponse(
+            success=False, audio_files=[], total=0, message=str(e)
+        )
+
+
+@router.delete("/audio/{filename}")
+async def delete_audio(filename: str):
+    """Delete a generated audio file."""
+    try:
+        filepath = settings.OUTPUTS_DIR / filename
+        if not filepath.exists():
+            raise HTTPException(404, "Audio file not found")
+
+        os.remove(filepath)
+
+        # Also remove metadata file if exists
+        metadata_file = filepath.with_suffix(".json")
+        if metadata_file.exists():
+            os.remove(metadata_file)
+
+        return {"success": True, "message": "Audio deleted successfully"}
+    except Exception as e:
+        logger.error(f"Failed to delete audio: {e}")
+        raise HTTPException(500, f"Failed to delete audio: {str(e)}")
+
+
 @router.get("/audio/{filename}")
 async def get_audio(filename: str):
     filepath = settings.OUTPUTS_DIR / filename
@@ -172,7 +253,7 @@ async def get_audio(filename: str):
     return FileResponse(
         filepath,
         media_type="audio/wav",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
