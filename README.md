@@ -21,7 +21,7 @@ A beautiful, modern web application for AI-powered voice synthesis using Microso
 
 <p align="center">
   <video
-    src="https://github.com/user-attachments/assets/5956b046-a994-4f84-a38f-109e4152969f"
+    src="https://github.com/user-attachments/assets/afeab318-11b7-4fb2-90fd-0dbe96f8d94b"
     width="800"
     controls
     playsinline
