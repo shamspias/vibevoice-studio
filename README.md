@@ -20,9 +20,7 @@ A beautiful, modern web application for AI-powered voice synthesis using Microso
 ## 🎬 Demo
 
 <p align="center">
-  <a href="https://github.com/user-attachments/assets/98868684-3c8c-40bf-848a-d13f9c8f1913">
-    <img src="https://github.com/shamspias/vibevoice-studio/raw/main/assets/thumbnail.png" width="320" alt="Watch the demo">
-  </a>
+  https://github.com/user-attachments/assets/98868684-3c8c-40bf-848a-d13f9c8f1913
 </p>
 
 
