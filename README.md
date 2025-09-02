@@ -20,14 +20,11 @@ A beautiful, modern web application for AI-powered voice synthesis using Microso
 ## 🎬 Demo
 
 <p align="center">
-  <video
-    src="https://github.com/user-attachments/assets/92c77253-de70-4efb-bd55-57004232f780"
-    width="800"
-    controls
-    playsinline
-    muted>
-  </video>
+  <a href="https://github.com/user-attachments/assets/98868684-3c8c-40bf-848a-d13f9c8f1913">
+    <img src="https://github.com/shamspias/vibevoice-studio/raw/main/assets/thumbnail.png" width="320" alt="Watch the demo">
+  </a>
 </p>
+
 
 <figcaption>VibeVoice Studio end-to-end TTS, voice library, and multi-speaker demo.</figcaption>
 
