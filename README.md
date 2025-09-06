@@ -51,7 +51,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 3. **Install VibeVoice**
 
 ```bash
-git clone https://github.com/microsoft/VibeVoice.git
+git clone https://github.com/shamspias/VibeVoice
 cd VibeVoice
 pip install -e .
 cd ..
