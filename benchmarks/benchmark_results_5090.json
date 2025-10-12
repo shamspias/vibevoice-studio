@@ -1,0 +1,70 @@
+{
+  "timestamp": "2025-10-11T16:32:46.290197",
+  "device": "cuda",
+  "model_path": "microsoft/VibeVoice-1.5B",
+  "environment": "VibeVoice Studio",
+  "repositories": {
+    "core_tts": "https://github.com/shamspias/VibeVoice",
+    "studio_app": "https://github.com/shamspias/vibevoice-studio"
+  },
+  "quality_metrics_enabled": true,
+  "hardware_info": {
+    "device": "cuda",
+    "ram_gb": 67.2,
+    "cpu_count": 12,
+    "gpu_name": "NVIDIA GeForce RTX 5090",
+    "gpu_memory_gb": 33.7,
+    "cuda_version": "12.8",
+    "pytorch_version": "2.8.0+cu128"
+  },
+  "results": [
+    {
+      "latency_sec": 2.4423211415608725,
+      "audio_duration_sec": 4.1666666666666665e-05,
+      "memory_peak_mb": 5857.768106666667,
+      "std_latency": 1.1475556353910017,
+      "real_time_factor": 58615.707397460945,
+      "latency_per_min_audio": 3516942.4438476562,
+      "wer_percent": 0.0,
+      "speaker_similarity": 0.52,
+      "test_name": "Short",
+      "text_length": 55,
+      "energy_per_audio_min_kwh": 341.9249598185222,
+      "cost_per_audio_min_usd": 78.15427652994794,
+      "hardware_type": "Edge GPU (NVIDIA GeForce RTX 5090)",
+      "estimated_power_watts": 350
+    },
+    {
+      "latency_sec": 8.672038316726685,
+      "audio_duration_sec": 4.1666666666666665e-05,
+      "memory_peak_mb": 5858.438314666666,
+      "std_latency": 0.21946745348096922,
+      "real_time_factor": 208128.91960144043,
+      "latency_per_min_audio": 12487735.176086426,
+      "wer_percent": 5.83,
+      "speaker_similarity": 0.57,
+      "test_name": "Medium",
+      "text_length": 329,
+      "energy_per_audio_min_kwh": 1214.0853643417358,
+      "cost_per_audio_min_usd": 277.50522613525396,
+      "hardware_type": "Edge GPU (NVIDIA GeForce RTX 5090)",
+      "estimated_power_watts": 350
+    },
+    {
+      "latency_sec": 13.238560438156128,
+      "audio_duration_sec": 4.1666666666666665e-05,
+      "memory_peak_mb": 5858.934613333334,
+      "std_latency": 0.36009749271183034,
+      "real_time_factor": 317725.45051574707,
+      "latency_per_min_audio": 19063527.030944824,
+      "wer_percent": 5.56,
+      "speaker_similarity": 0.558,
+      "test_name": "Long",
+      "text_length": 577,
+      "energy_per_audio_min_kwh": 1853.398461341858,
+      "cost_per_audio_min_usd": 423.63393402099615,
+      "hardware_type": "Edge GPU (NVIDIA GeForce RTX 5090)",
+      "estimated_power_watts": 350
+    }
+  ]
+}

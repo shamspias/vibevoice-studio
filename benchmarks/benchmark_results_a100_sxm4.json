@@ -1,0 +1,70 @@
+{
+  "timestamp": "2025-10-11T17:19:03.464251",
+  "device": "cuda",
+  "model_path": "microsoft/VibeVoice-1.5B",
+  "environment": "VibeVoice Studio",
+  "repositories": {
+    "core_tts": "https://github.com/shamspias/VibeVoice",
+    "studio_app": "https://github.com/shamspias/vibevoice-studio"
+  },
+  "quality_metrics_enabled": true,
+  "hardware_info": {
+    "device": "cuda",
+    "ram_gb": 422.7,
+    "cpu_count": 32,
+    "gpu_name": "NVIDIA A100-SXM4-80GB",
+    "gpu_memory_gb": 85.0,
+    "cuda_version": "12.8",
+    "pytorch_version": "2.8.0+cu128"
+  },
+  "results": [
+    {
+      "latency_sec": 6.562560558319092,
+      "audio_duration_sec": 4.1666666666666665e-05,
+      "memory_peak_mb": 5857.757354666667,
+      "std_latency": 1.5705325993552746,
+      "real_time_factor": 157501.4533996582,
+      "latency_per_min_audio": 9450087.203979492,
+      "wer_percent": 6.67,
+      "speaker_similarity": 0.52,
+      "test_name": "Short",
+      "text_length": 55,
+      "energy_per_audio_min_kwh": 1050.0096893310547,
+      "cost_per_audio_min_usd": 5250.048446655273,
+      "hardware_type": "Cloud A100 GPU",
+      "estimated_power_watts": 400
+    },
+    {
+      "latency_sec": 24.47473446528117,
+      "audio_duration_sec": 4.1666666666666665e-05,
+      "memory_peak_mb": 5858.440704000001,
+      "std_latency": 0.4058576226917328,
+      "real_time_factor": 587393.627166748,
+      "latency_per_min_audio": 35243617.63000488,
+      "wer_percent": 7.5,
+      "speaker_similarity": 0.568,
+      "test_name": "Medium",
+      "text_length": 329,
+      "energy_per_audio_min_kwh": 3915.957514444987,
+      "cost_per_audio_min_usd": 19579.787572224937,
+      "hardware_type": "Cloud A100 GPU",
+      "estimated_power_watts": 400
+    },
+    {
+      "latency_sec": 36.94453159968058,
+      "audio_duration_sec": 4.1666666666666665e-05,
+      "memory_peak_mb": 5858.891776,
+      "std_latency": 0.9008404365257346,
+      "real_time_factor": 886668.758392334,
+      "latency_per_min_audio": 53200125.50354004,
+      "wer_percent": 8.79,
+      "speaker_similarity": 0.549,
+      "test_name": "Long",
+      "text_length": 577,
+      "energy_per_audio_min_kwh": 5911.1250559488935,
+      "cost_per_audio_min_usd": 29555.625279744465,
+      "hardware_type": "Cloud A100 GPU",
+      "estimated_power_watts": 400
+    }
+  ]
+}

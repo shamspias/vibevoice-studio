@@ -1,0 +1,70 @@
+{
+  "timestamp": "2025-10-11T16:58:45.061127",
+  "device": "cuda",
+  "model_path": "microsoft/VibeVoice-1.5B",
+  "environment": "VibeVoice Studio",
+  "repositories": {
+    "core_tts": "https://github.com/shamspias/VibeVoice",
+    "studio_app": "https://github.com/shamspias/vibevoice-studio"
+  },
+  "quality_metrics_enabled": true,
+  "hardware_info": {
+    "device": "cuda",
+    "ram_gb": 540.6,
+    "cpu_count": 128,
+    "gpu_name": "NVIDIA GeForce RTX 4090",
+    "gpu_memory_gb": 50.9,
+    "cuda_version": "12.8",
+    "pytorch_version": "2.8.0+cu128"
+  },
+  "results": [
+    {
+      "latency_sec": 5.361799875895183,
+      "audio_duration_sec": 4.1666666666666665e-05,
+      "memory_peak_mb": 5857.791658666666,
+      "std_latency": 1.984100468540057,
+      "real_time_factor": 128683.19702148439,
+      "latency_per_min_audio": 7720991.8212890625,
+      "wer_percent": 3.33,
+      "speaker_similarity": 0.538,
+      "test_name": "Short",
+      "text_length": 55,
+      "energy_per_audio_min_kwh": 965.1239776611329,
+      "cost_per_audio_min_usd": 214.47199503580734,
+      "hardware_type": "Edge RTX 4090",
+      "estimated_power_watts": 450
+    },
+    {
+      "latency_sec": 18.884907166163128,
+      "audio_duration_sec": 4.1666666666666665e-05,
+      "memory_peak_mb": 5858.434048,
+      "std_latency": 1.6523039784326408,
+      "real_time_factor": 453237.7719879151,
+      "latency_per_min_audio": 27194266.319274902,
+      "wer_percent": 3.33,
+      "speaker_similarity": 0.569,
+      "test_name": "Medium",
+      "text_length": 329,
+      "energy_per_audio_min_kwh": 3399.2832899093632,
+      "cost_per_audio_min_usd": 755.3962866465253,
+      "hardware_type": "Edge RTX 4090",
+      "estimated_power_watts": 450
+    },
+    {
+      "latency_sec": 30.356602509816486,
+      "audio_duration_sec": 4.1666666666666665e-05,
+      "memory_peak_mb": 5858.9219840000005,
+      "std_latency": 1.5022149675467016,
+      "real_time_factor": 728558.4602355957,
+      "latency_per_min_audio": 43713507.61413574,
+      "wer_percent": 6.48,
+      "speaker_similarity": 0.559,
+      "test_name": "Long",
+      "text_length": 577,
+      "energy_per_audio_min_kwh": 5464.188451766969,
+      "cost_per_audio_min_usd": 1214.2641003926597,
+      "hardware_type": "Edge RTX 4090",
+      "estimated_power_watts": 450
+    }
+  ]
+}

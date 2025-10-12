@@ -1,0 +1,70 @@
+{
+  "timestamp": "2025-10-11T17:02:41.108751",
+  "device": "cuda",
+  "model_path": "microsoft/VibeVoice-1.5B",
+  "environment": "VibeVoice Studio",
+  "repositories": {
+    "core_tts": "https://github.com/shamspias/VibeVoice",
+    "studio_app": "https://github.com/shamspias/vibevoice-studio"
+  },
+  "quality_metrics_enabled": true,
+  "hardware_info": {
+    "device": "cuda",
+    "ram_gb": 1081.9,
+    "cpu_count": 96,
+    "gpu_name": "NVIDIA L40S",
+    "gpu_memory_gb": 47.7,
+    "cuda_version": "12.8",
+    "pytorch_version": "2.8.0+cu128"
+  },
+  "results": [
+    {
+      "latency_sec": 2.9229767322540283,
+      "audio_duration_sec": 4.1666666666666665e-05,
+      "memory_peak_mb": 5857.736021333333,
+      "std_latency": 0.9122313408174489,
+      "real_time_factor": 70151.44157409668,
+      "latency_per_min_audio": 4209086.494445801,
+      "wer_percent": 0.0,
+      "speaker_similarity": 0.528,
+      "test_name": "Short",
+      "text_length": 55,
+      "energy_per_audio_min_kwh": 75.99739503860474,
+      "cost_per_audio_min_usd": 58.45953464508057,
+      "hardware_type": "CPU",
+      "estimated_power_watts": 65
+    },
+    {
+      "latency_sec": 11.960952997207642,
+      "audio_duration_sec": 4.1666666666666665e-05,
+      "memory_peak_mb": 5858.404010666666,
+      "std_latency": 0.673168046742802,
+      "real_time_factor": 287062.8719329834,
+      "latency_per_min_audio": 17223772.315979004,
+      "wer_percent": 5.0,
+      "speaker_similarity": 0.57,
+      "test_name": "Medium",
+      "text_length": 329,
+      "energy_per_audio_min_kwh": 310.98477792739874,
+      "cost_per_audio_min_usd": 239.21905994415286,
+      "hardware_type": "CPU",
+      "estimated_power_watts": 65
+    },
+    {
+      "latency_sec": 18.68381150563558,
+      "audio_duration_sec": 4.1666666666666665e-05,
+      "memory_peak_mb": 5858.941098666667,
+      "std_latency": 0.44741404576441074,
+      "real_time_factor": 448411.4761352539,
+      "latency_per_min_audio": 26904688.568115234,
+      "wer_percent": 5.09,
+      "speaker_similarity": 0.553,
+      "test_name": "Long",
+      "text_length": 577,
+      "energy_per_audio_min_kwh": 485.779099146525,
+      "cost_per_audio_min_usd": 373.6762301127116,
+      "hardware_type": "CPU",
+      "estimated_power_watts": 65
+    }
+  ]
+}
